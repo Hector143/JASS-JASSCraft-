@@ -1,0 +1,122 @@
+// =======================================================
+// Alpha Strike Spell in JASS
+// Converted from GUI triggers
+// =======================================================
+
+globals
+    unit        Alpha_Caster
+    unit        Alpha_Target
+    real        Alpha_Speed
+    real        Alpha_Distance
+    real        Alpha_Damage
+    integer     Alpha_Index
+    real        Alpha_Timer
+    real        Alpha_Angle
+    location    Alpha_Point
+    effect      Alpha_Effect
+    unit        Alpha_StunDummy
+endglobals
+
+// =======================================================
+// Utility Function: Offset Position
+// =======================================================
+function OffsetPosition takes unit u, real distance, real angle returns location
+    local real x = GetUnitX(u) + distance * CosBJ(angle)
+    local real y = GetUnitY(u) + distance * SinBJ(angle)
+    return Location(x, y)
+endfunction
+
+// =======================================================
+// Alpha Strike Cast Trigger
+// =======================================================
+function AlphaStrike_Cast takes nothing returns nothing
+    set Alpha_Caster = GetTriggerUnit()
+    set Alpha_Target = GetSpellTargetUnit()
+    set Alpha_Index = 1
+    set Alpha_Distance = 300.0
+    set Alpha_Speed = 30.0
+    set Alpha_Damage = 100.0
+    set Alpha_Timer = 0.0
+
+    // Make caster invulnerable
+    call SetUnitInvulnerable(Alpha_Caster, true)
+
+    // Play attack animation & semi-transparent
+    call SetUnitAnimation(Alpha_Caster, "attack")
+    call SetUnitVertexColor(Alpha_Caster, 255, 255, 255, 128) // 50% transparency
+
+    // Create BlinkCaster effect on chest
+    set Alpha_Effect = AddSpecialEffectTarget("Abilities\\Spells\\NightElf\\Blink\\BlinkCaster.mdl", Alpha_Caster, "chest")
+
+    // Create dummy to apply stun
+    set Alpha_StunDummy = CreateUnit(GetOwningPlayer(Alpha_Caster), 'h000', GetUnitX(Alpha_Caster), GetUnitY(Alpha_Caster), 0) // Dummy unit ID
+    call UnitAddAbility(Alpha_StunDummy, 'A000') // Add stun ability
+    call IssueTargetOrderById(Alpha_StunDummy, OrderId("stormbolt"), Alpha_Target)
+    call UnitApplyTimedLife(Alpha_StunDummy, 'BTLF', 2.0)
+
+    // Start the dash trigger
+    call TriggerRegisterTimerEventPeriodic(gg_trg_AlphaStrikeDash, 0.03)
+endfunction
+
+// =======================================================
+// Alpha Strike Dash Trigger (runs every 0.03 seconds)
+// =======================================================
+function AlphaStrike_Dash takes nothing returns nothing
+    if Alpha_Index <= 4 then
+
+        // Calculate angle for each dash
+        if Alpha_Index == 1 then
+            set Alpha_Angle = AngleBetweenUnits(Alpha_Caster, Alpha_Target)
+        elseif Alpha_Index == 2 then
+            set Alpha_Angle = AngleBetweenUnits(Alpha_Caster, Alpha_Target) + 90.0
+        elseif Alpha_Index == 3 then
+            set Alpha_Angle = AngleBetweenUnits(Alpha_Caster, Alpha_Target) - 90.0
+        elseif Alpha_Index == 4 then
+            set Alpha_Angle = AngleBetweenUnits(Alpha_Caster, Alpha_Target) + 180.0
+        endif
+
+        // Move caster
+        set Alpha_Point = OffsetPosition(Alpha_Caster, Alpha_Speed, Alpha_Angle)
+        call SetUnitPositionLoc(Alpha_Caster, Alpha_Point)
+        call RemoveLocation(Alpha_Point)
+
+        // Update timer
+        set Alpha_Timer = Alpha_Timer + 0.03
+
+        if Alpha_Timer >= Alpha_Distance / Alpha_Speed * 0.03 then
+            set Alpha_Timer = 0.0
+
+            // Damage target
+            if Alpha_Index < 4 then
+                call UnitDamageTarget(Alpha_Caster, Alpha_Target, Alpha_Damage, true, false, ATTACK_TYPE_CHAOS, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+                call SetUnitAnimation(Alpha_Caster, "attack")
+            else
+                call UnitDamageTarget(Alpha_Caster, Alpha_Target, Alpha_Damage * 4, true, false, ATTACK_TYPE_CHAOS, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+                call SetUnitAnimation(Alpha_Caster, "slam")
+            endif                                                                       
+
+            // Effects & floating text
+            call AddSpecialEffectTarget("Abilities\\Weapons\\ZergHydraliskMissile\\ZergHydraliskMissile.mdl", Alpha_Target, "origin")
+            call DisplayTextToPlayer(GetOwningPlayer(Alpha_Target), 0, 0, "CRIT! " + I2S(R2I(Alpha_Damage)))
+            call AddSpecialEffect("Abilities\\Spells\\Other\\Stampede\\StampedeMissileDeath.mdl", GetUnitX(Alpha_Target), GetUnitY(Alpha_Target))
+
+            // Increment dash index
+            set Alpha_Index = Alpha_Index + 1
+        endif
+
+    else
+        // End of dash: cleanup
+        call DestroyEffect(Alpha_Effect)
+        call SetUnitVertexColor(Alpha_Caster, 255, 255, 255, 0) // Restore transparency for the code
+        call SetUnitInvulnerable(Alpha_Caster, false)
+        call TriggerSleepAction(0.03) // optional tiny delay
+        call TriggerRemoveAction(gg_trg_AlphaStrikeDash, null) // Stop dash trigger
+    endif
+endfunction
+
+// =======================================================
+// Utility Function: Angle between units
+// =======================================================
+function AngleBetweenUnits takes unit u1, unit u2 returns real
+    return Atan(GetUnitY(u2) - GetUnitY(u1), GetUnitX(u2) - GetUnitX(u1))
+endfunction
