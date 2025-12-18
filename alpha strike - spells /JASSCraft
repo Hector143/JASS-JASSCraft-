@@ -120,3 +120,4 @@ endfunction
 function AngleBetweenUnits takes unit u1, unit u2 returns real
     return Atan(GetUnitY(u2) - GetUnitY(u1), GetUnitX(u2) - GetUnitX(u1))
 endfunction
+
