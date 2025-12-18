@@ -1,4 +1,4 @@
-# JASS-JASSCraft- is another version of GUI in warcraft III (WE) triggers
+# JASS-JASSCraft- is a custom script version of GUI in warcraft III (WE) triggers
 Blizzard-Warcraft III  
 This is exclusive only for warcraft III
 Game functions :
